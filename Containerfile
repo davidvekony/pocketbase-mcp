@@ -35,10 +35,7 @@ COPY --from=builder /app/node_modules ./node_modules
 # Expose the port on which the server will run (assume 3000, replace if necessary)
 EXPOSE 3000
 
-# Set the environment variables for the PocketBase connection
-ENV POCKETBASE_URL=http://127.0.0.1:8090
-ENV POCKETBASE_ADMIN_EMAIL=test@test.com
-ENV POCKETBASE_ADMIN_PASSWORD=test
-
-# Start the server
+# Credentials are provided at runtime via Podman secrets exported as environment variables:
+#   podman secret create POCKETBASE_ADMIN_PASSWORD -
+#   podman run --secret POCKETBASE_ADMIN_PASSWORD,type=env ...
 CMD ["node", "build/index.js"]

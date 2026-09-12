@@ -92,15 +92,27 @@ You can run the PocketBase MCP server using Podman. A `Containerfile` is include
 podman build -t pocketbase-mcp .
 ```
 
+### Creating the Secrets
+
+Credentials are passed as Podman secrets, exported as environment variables inside the container (`type=env`). Name each secret after the environment variable it provides.
+
+```bash
+# Create the admin password secret
+printf '%s' 'your_admin_password' | podman secret create POCKETBASE_ADMIN_PASSWORD -
+
+# Create the admin email secret
+printf '%s' 'your_admin@example.com' | podman secret create POCKETBASE_ADMIN_EMAIL -
+```
+
 ### Running the Container
 
 ```bash
-# Run the container with environment variables
+# Run the container with Podman secrets
 podman run -d \
   --name pocketbase-mcp \
   -e POCKETBASE_URL=http://127.0.0.1:8090 \
-  -e POCKETBASE_ADMIN_EMAIL=your_admin@example.com \
-  -e POCKETBASE_ADMIN_PASSWORD=your_admin_password \
+  --secret POCKETBASE_ADMIN_EMAIL,type=env \
+  --secret POCKETBASE_ADMIN_PASSWORD,type=env \
   pocketbase-mcp
 ```
 
@@ -121,10 +133,10 @@ To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.
         "--rm",
         "-e",
         "POCKETBASE_URL=http://host.containers.internal:8090",
-        "-e",
-        "POCKETBASE_ADMIN_EMAIL=your_admin@example.com",
-        "-e",
-        "POCKETBASE_ADMIN_PASSWORD=your_admin_password",
+        "--secret",
+        "POCKETBASE_ADMIN_EMAIL,type=env",
+        "--secret",
+        "POCKETBASE_ADMIN_PASSWORD,type=env",
         "pocketbase-mcp"
       ],
       "disabled": false,
@@ -138,20 +150,6 @@ To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.
 
 ```json
 {
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "pocketbase-admin-email",
-      "description": "PocketBase Admin Email",
-      "password": false
-    },
-    {
-      "type": "promptString",
-      "id": "pocketbase-admin-password",
-      "description": "PocketBase Admin Password",
-      "password": true
-    }
-  ],
   "servers": {
     "pocketbasePodman": {
       "type": "stdio",
@@ -162,10 +160,10 @@ To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.
         "--rm",
         "-e",
         "POCKETBASE_URL=http://host.containers.internal:8090",
-        "-e",
-        "POCKETBASE_ADMIN_EMAIL=${input:pocketbase-admin-email}",
-        "-e",
-        "POCKETBASE_ADMIN_PASSWORD=${input:pocketbase-admin-password}",
+        "--secret",
+        "POCKETBASE_ADMIN_EMAIL,type=env",
+        "--secret",
+        "POCKETBASE_ADMIN_PASSWORD,type=env",
         "pocketbase-mcp"
       ]
     }
@@ -178,40 +176,9 @@ To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.
 - **`-i`**: Interactive mode (required for stdio communication)
 - **`--rm`**: Automatically remove container when it exits
 - **`host.containers.internal`**: Use this to access PocketBase running on your host machine from within the container
-- **Environment Variables**: Replace placeholder values with your actual PocketBase credentials
+- **`--secret ... ,type=env`**: Exports a Podman secret as an environment variable named after the secret; secrets must exist before running (`podman secret create`)
+- **Environment Variables**: Only non-sensitive values like `POCKETBASE_URL` stay as environment variables
 - **Network**: If your PocketBase is also running in a container, use Podman networking (e.g., `--network host` or custom bridge network)
-
-### Podman Compose (Optional)
-
-Create a `compose.yml` for easier management:
-
-```yaml
-version: "3.8"
-
-services:
-  pocketbase-mcp:
-    build: .
-    environment:
-      - POCKETBASE_URL=http://host.containers.internal:8090
-      - POCKETBASE_ADMIN_EMAIL=your_admin@example.com
-      - POCKETBASE_ADMIN_PASSWORD=your_admin_password
-    stdin_open: true
-    tty: true
-```
-
-Then configure your MCP settings to use:
-
-```json
-{
-  "mcpServers": {
-    "pocketbase-podman": {
-      "command": "podman-compose",
-      "args": ["run", "--rm", "pocketbase-mcp"],
-      "disabled": false
-    }
-  }
-}
-```
 
 ## Features
 
