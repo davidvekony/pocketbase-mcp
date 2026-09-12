@@ -29,7 +29,7 @@ export class PocketBaseServer {
     };
 
     this.server = new McpServer(
-      { name: 'pocketbase-server', version: '0.1.0' },
+      { name: 'pocketbase-server', version: '0.2.0' },
       {
         instructions:
           'This server manages a single PocketBase instance at POCKETBASE_URL. Collection management, backups, and impersonation require POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD. User-scoped auth tools share one session auth state, so call authenticate_user before request_email_change or auth_refresh.',
