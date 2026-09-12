@@ -1,51 +1,23 @@
 # PocketBase MCP Server
 
-A very much in progress MCP server based off of the Dynamics one that I have been testing and refining. That provides sophisticated tools for interacting with PocketBase databases. This server enables advanced database operations, schema management, and data manipulation through the Model Context Protocol (MCP).
+An MCP server that exposes PocketBase operations as tools for AI assistants. It provides 24 tools covering collections, records, authentication, and database backups, built on the MCP TypeScript SDK v2 and the PocketBase JavaScript SDK.
 
-Here is a video of me using it: https://www.youtube.com/watch?v=ZuTIO3I7rTM&t=345s
+## Requirements
 
-## Why This And Not DynamicsEndpoints?
+- Node.js >= 26
+- pnpm >= 12
+- A running PocketBase instance
 
-This has actually been tested on the latest version. Currently 26.1 of PocketBase and is built off of the type definitions in the JS-SDK and not the arbitrary and wrong definitions found in the Dynamics one. Many of the methods don't even work.
+## Setup MCP Server Locally
 
-## Setup MCP Server Locally (Only Way Supported for Now)
+Install dependencies and compile the server:
 
-To set up the MCP server locally, you'll need to configure it within your `cline_mcp_settings.json` or whatever you use (claude, cursor, the config looks identical you just need to find where it is stored) file. Here's how:
+```bash
+pnpm install
+pnpm build
+```
 
-1.  **Locate your `cline_mcp_settings.json` file:** This file is usually located in your Cursor user settings directory. For example:
-    `/Users/yourusername/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-
-2.  **Configure the server:** Add a new entry to the `mcpServers` object in your `cline_mcp_settings.json` file. The key should be a unique name for your server (e.g., "pocketbase-server"), and the value should be an object containing the server's configuration.
-
-    ```json
-    {
-      "mcpServers": {
-        "pocketbase-server": {
-          "command": "node",
-          "args": ["build/index.js"],
-          "env": {
-            "POCKETBASE_URL": "http://127.0.0.1:8090",
-            "POCKETBASE_ADMIN_EMAIL": "admin@example.com",
-            "POCKETBASE_ADMIN_PASSWORD": "admin_password"
-          },
-          "disabled": false,
-          "autoApprove": ["create_record", "create_collection"]
-        }
-      }
-    }
-    ```
-
-    - **`command`**: The command to start the server (usually `node`).
-    - **`args`**: An array of arguments to pass to the command. This should point to the compiled JavaScript file of your MCP server (e.g., `build/index.js`). Make sure the path is correct.
-    - **`env`**: An object containing environment variables.
-      - **`POCKETBASE_URL`**: The URL of your PocketBase instance. This is _required_.
-      - **`POCKETBASE_ADMIN_EMAIL`**: The admin email for your PocketBase instance (optional, but needed for some operations).
-      - **`POCKETBASE_ADMIN_PASSWORD`**: The admin password for your PocketBase instance (optional, but needed for some operations).
-    - **`disabled`**: Whether to disable to server on startup.
-    - **`autoApprove`**: list of tools to auto approve.
-    - Adjust the values in the `env` object to match your PocketBase instance's settings.
-
-**For OpenCode (`opencode.json`):**
+Configure the server in your `opencode.json`:
 
 ```json
 {
@@ -65,41 +37,9 @@ To set up the MCP server locally, you'll need to configure it within your `cline
 }
 ```
 
-- Setup in vscode is similar , find or create `.vscode/mcp.json` and add
+Adjust the `environment` values to match your PocketBase instance. If the server is configured from outside this directory, use an absolute path to `build/index.js`.
 
-```json
-{
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "pocketbase-admin-email",
-      "description": "PocketBase Admin Email",
-      "password": false
-    },
-    {
-      "type": "promptString",
-      "id": "pocketbase-admin-password",
-      "description": "PocketBase Admin Password",
-      "password": true
-    }
-  ],
-  "servers": {
-    "pocketbaseServer": {
-      "type": "stdio",
-      "command": "node",
-      // replace this with the path to your compiled MCP server (git clone the repo and run `pnpm run build` to compile)
-      "args": ["~/Desktop/code/mcp/pocketbase-mcp/build/index.js"],
-      "env": {
-        "POCKETBASE_URL": "http://127.0.0.1:8090",
-        "POCKETBASE_ADMIN_EMAIL": "${input:pocketbase-admin-email}",
-        "POCKETBASE_ADMIN_PASSWORD": "${input:pocketbase-admin-password}"
-      }
-    }
-  }
-}
-```
-
-1.  **Start the server:** After configuring the `cline_mcp_settings.json` file, you can start using the MCP server with the configured tools.
+Running `pnpm start` loads a `.env` file from the project root via Node's `--env-file-if-exists` flag. See `.env.example` for the available variables.
 
 ## Setup MCP Server with Podman
 
@@ -108,7 +48,6 @@ You can run the PocketBase MCP server using Podman. A `Containerfile` is include
 ### Building the Container Image
 
 ```bash
-# Build the container image
 podman build -t pocketbase-mcp .
 ```
 
@@ -127,7 +66,6 @@ printf '%s' 'your_admin@example.com' | podman secret create POCKETBASE_ADMIN_EMA
 ### Running the Container
 
 ```bash
-# Run the container with Podman secrets
 podman run -d \
   --name pocketbase-mcp \
   -e POCKETBASE_URL=http://127.0.0.1:8090 \
@@ -138,9 +76,7 @@ podman run -d \
 
 ### Podman MCP Configuration
 
-To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.), configure it in your MCP settings:
-
-**For OpenCode (`opencode.json`) with Podman:**
+To let OpenCode start the containerized server on demand, configure it in `opencode.json`:
 
 ```json
 {
@@ -167,31 +103,6 @@ To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.
 }
 ```
 
-**For VS Code (`.vscode/mcp.json`):**
-
-```json
-{
-  "servers": {
-    "pocketbasePodman": {
-      "type": "stdio",
-      "command": "podman",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "POCKETBASE_URL=http://host.containers.internal:8090",
-        "--secret",
-        "POCKETBASE_ADMIN_EMAIL,type=env",
-        "--secret",
-        "POCKETBASE_ADMIN_PASSWORD,type=env",
-        "pocketbase-mcp"
-      ]
-    }
-  }
-}
-```
-
 ### Podman Configuration Notes
 
 - **`-i`**: Interactive mode (required for stdio communication)
@@ -201,91 +112,70 @@ To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.
 - **Environment Variables**: Only non-sensitive values like `POCKETBASE_URL` stay as environment variables
 - **Network**: If your PocketBase is also running in a container, use Podman networking (e.g., `--network host` or custom bridge network)
 
-## Features
-
-### Collection Management
-
-- Create and manage collections with custom schemas
-- Retrieve collection schemas and metadata
-
-### Record Operations
-
-- CRUD operations for records
-- Relationship expansion support
-- Pagination and cursor-based navigation
-
-### User Management
-
-- User authentication and token management
-- User account creation and management
-- Password management
-
-### Database Operations
-
-- Database backup
-
-## Available Tools
-
-### Collection Management
-
-- `create_collection`: Create a new collection with custom schema
-- `get_collection`: Get schema details for a collection
-
-### Record Operations
-
-- `create_record`: Create a new record in a collection
-- `list_records`: List records with optional filters and pagination
-- `update_record`: Update an existing record
-- `delete_record`: Delete a record
-
-### User Management
-
-- `authenticate_user`: Authenticate a user and get auth token
-- `create_user`: Create a new user account
-
-### Database Operations
-
-- `backup_database`: Create a backup of the PocketBase database with format options
-
 ## Configuration
 
-The server requires the following environment variables:
+The server requires the following environment variable:
 
-- `POCKETBASE_URL`: URL of your PocketBase instance (e.g., "http://127.0.0.1:8090")
+- `POCKETBASE_URL`: URL of your PocketBase instance (e.g., `http://127.0.0.1:8090`)
 
 Optional environment variables:
 
-- `POCKETBASE_ADMIN_EMAIL`: Admin email for certain operations
+- `POCKETBASE_ADMIN_EMAIL`: Admin email, needed for operations that require superuser authentication
 - `POCKETBASE_ADMIN_PASSWORD`: Admin password
-- `POCKETBASE_DATA_DIR`: Custom data directory path
 
-## Usage Examples
+## Available Tools
 
-```typescript
-// Create a new collection
-await mcp.use_tool("pocketbase", "create_collection", {
-  name: "posts",
-  schema: [
-    {
-      name: "title",
-      type: "text",
-      required: true,
-    },
-    {
-      name: "content",
-      type: "text",
-      required: true,
-    },
-  ],
-});
+### Collections
 
-// Authenticate with password
-await mcp.use_tool("pocketbase", "authenticate_user", {
-  email: "user@example.com",
-  password: "securepassword",
-  collection: "users",
-});
+- `create_collection`: Create a new collection
+- `update_collection`: Update an existing collection
+- `get_collection`: Get a collection by ID or name
+- `list_collections`: List collections, optionally filtered or sorted
+- `delete_collection`: Delete a collection
+
+### Records
+
+- `create_record`: Create a record in a collection
+- `list_records`: List records with optional filters, sorting, and pagination
+- `update_record`: Update an existing record
+- `delete_record`: Delete a record
+- `import_data`: Import multiple records into a collection (create, update, or upsert)
+
+### Authentication
+
+- `list_auth_methods`: List the enabled authentication methods of a collection
+- `authenticate_user`: Authenticate with email and password
+- `authenticate_with_oauth2`: Authenticate with an OAuth2 provider
+- `authenticate_with_otp`: Request an OTP or complete OTP authentication
+- `auth_refresh`: Refresh the current authentication token
+- `request_verification`: Request an email verification
+- `confirm_verification`: Confirm an email verification
+- `request_password_reset`: Request a password reset
+- `confirm_password_reset`: Confirm a password reset
+- `request_email_change`: Request an email change
+- `confirm_email_change`: Confirm an email change
+- `impersonate_user`: Impersonate a user as an admin (requires admin credentials)
+- `create_user`: Create a new user account
+
+### Backups
+
+- `backup_database`: Create a backup of the PocketBase database
+
+## Development
+
+Run the unit and registration tests:
+
+```bash
+pnpm test
 ```
+
+The live integration test is opt-in:
+
+```bash
+RUN_INTEGRATION=1 pnpm test
+```
+
+Unless `POCKETBASE_BIN` points to an existing binary, this downloads PocketBase v0.40.4 into `.cache/pocketbase` (checksum verified), starts it on a free port, and removes its data directory afterwards. To test against an external instance instead, set `RUN_INTEGRATION=1`, `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, and `POCKETBASE_ADMIN_PASSWORD`.
 
 ## Contributing
 
@@ -294,3 +184,7 @@ await mcp.use_tool("pocketbase", "authenticate_user", {
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
+
+## License
+
+MIT. See [LICENSE](LICENSE).
