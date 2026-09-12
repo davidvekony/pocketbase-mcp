@@ -82,10 +82,13 @@ test(
 
       const backup = await callTool(client, 'backup_database', { name: `mcp_test_${suffix}` });
       assert.equal(backup.isError, undefined);
-
-      await callTool(client, 'delete_collection', { collectionIdOrName: dataCollection });
-      await callTool(client, 'delete_collection', { collectionIdOrName: authCollection });
     } finally {
+      try {
+        await callTool(client, 'delete_collection', { collectionIdOrName: dataCollection });
+      } catch {}
+      try {
+        await callTool(client, 'delete_collection', { collectionIdOrName: authCollection });
+      } catch {}
       await client.close();
     }
   }
