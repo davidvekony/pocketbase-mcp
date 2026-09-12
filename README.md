@@ -181,7 +181,7 @@ Run everything in one go:
 pnpm test:all
 ```
 
-The integration test downloads PocketBase v0.40.4 into `.cache/pocketbase` unless `POCKETBASE_BIN` points to an existing binary (checksum verified), starts it on a free port, and removes its data directory afterwards. To test against an external instance instead, run `pnpm test:integration` with `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, and `POCKETBASE_ADMIN_PASSWORD` set.
+The integration test downloads the latest PocketBase release (resolved from the GitHub releases API, checksum verified) into `.cache/pocketbase` unless `POCKETBASE_BIN` points to an existing binary, starts it on a free port, and removes its data directory afterwards. If the GitHub API is unreachable, the newest cached version is reused. To test against an external instance instead, run `pnpm test:integration` with `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, and `POCKETBASE_ADMIN_PASSWORD` set.
 
 ## Contributing
 

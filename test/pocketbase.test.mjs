@@ -1,14 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
-import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import {
   cachePathFor,
   downloadUrl,
+  ensureBinary,
   parseChecksums,
   resolveAssetName,
+  resolveLatestVersion,
 } from '../scripts/pocketbase-binary.mjs';
 import { getFreePort, waitForHealth } from './pocketbase.mjs';
+
+async function withCacheRoot(fn) {
+  const cacheRoot = await mkdtemp(join(tmpdir(), 'pb-cache-'));
+  try {
+    return await fn(cacheRoot);
+  } finally {
+    await rm(cacheRoot, { recursive: true, force: true });
+  }
+}
+
+async function cacheBinary(cacheRoot, version) {
+  const target = cachePathFor({ cacheRoot, version, platform: 'linux', arch: 'x64' });
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, 'binary');
+  return target;
+}
 
 test('resolveAssetName maps platform and arch to release asset names', () => {
   assert.equal(resolveAssetName('0.40.4', 'linux', 'x64'), 'pocketbase_0.40.4_linux_amd64.zip');
@@ -78,4 +98,70 @@ test('waitForHealth rejects with the url after timeout', async () => {
     waitForHealth('http://127.0.0.1:1/api/health', { fetchImpl, timeoutMs: 30, intervalMs: 5 }),
     /http:\/\/127\.0\.0\.1:1\/api\/health/,
   );
+});
+
+test('resolveLatestVersion returns the latest release tag without the v prefix', async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    return { ok: true, json: async () => ({ tag_name: 'v0.41.0' }) };
+  };
+  assert.equal(await resolveLatestVersion(fetchImpl), '0.41.0');
+  assert.equal(calls[0].url, 'https://api.github.com/repos/pocketbase/pocketbase/releases/latest');
+  assert.ok(calls[0].options.headers['User-Agent']);
+});
+
+test('resolveLatestVersion rejects an unexpected release tag', async () => {
+  const fetchImpl = async () => ({ ok: true, json: async () => ({ tag_name: 'nightly' }) });
+  await assert.rejects(resolveLatestVersion(fetchImpl), /Unexpected latest release tag: nightly/);
+});
+
+test('resolveLatestVersion rejects a failed release lookup', async () => {
+  const fetchImpl = async () => ({ ok: false, status: 503 });
+  await assert.rejects(resolveLatestVersion(fetchImpl), /HTTP 503/);
+});
+
+test('ensureBinary uses an explicit version without resolving latest', async () => {
+  await withCacheRoot(async (cacheRoot) => {
+    const target = await cacheBinary(cacheRoot, '0.40.4');
+    const fetchImpl = async () => {
+      throw new Error('fetch should not be called');
+    };
+    assert.equal(
+      await ensureBinary({ version: '0.40.4', cacheRoot, platform: 'linux', arch: 'x64', fetchImpl }),
+      target,
+    );
+  });
+});
+
+test('ensureBinary resolves the latest version and reuses its cached binary', async () => {
+  await withCacheRoot(async (cacheRoot) => {
+    const target = await cacheBinary(cacheRoot, '0.41.0');
+    const fetchImpl = async () => ({ ok: true, json: async () => ({ tag_name: 'v0.41.0' }) });
+    assert.equal(await ensureBinary({ cacheRoot, platform: 'linux', arch: 'x64', fetchImpl }), target);
+  });
+});
+
+test('ensureBinary falls back to the newest cached version when latest lookup fails', async () => {
+  await withCacheRoot(async (cacheRoot) => {
+    await cacheBinary(cacheRoot, '0.40.9');
+    const target = await cacheBinary(cacheRoot, '0.40.10');
+    await cacheBinary(cacheRoot, 'junk');
+    const fetchImpl = async () => {
+      throw new Error('offline');
+    };
+    assert.equal(await ensureBinary({ cacheRoot, platform: 'linux', arch: 'x64', fetchImpl }), target);
+  });
+});
+
+test('ensureBinary reports when no version can be resolved or cached', async () => {
+  await withCacheRoot(async (cacheRoot) => {
+    const fetchImpl = async () => {
+      throw new Error('offline');
+    };
+    await assert.rejects(
+      ensureBinary({ cacheRoot, platform: 'linux', arch: 'x64', fetchImpl }),
+      /No cached PocketBase version found/,
+    );
+  });
 });

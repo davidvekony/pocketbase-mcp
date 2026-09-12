@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DEFAULT_VERSION, ensureBinary } from '../scripts/pocketbase-binary.mjs';
+import { ensureBinary } from '../scripts/pocketbase-binary.mjs';
 
 export function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -44,7 +44,7 @@ function run(command, args) {
 }
 
 export async function startPocketBase({
-  version = DEFAULT_VERSION,
+  version,
   binaryPath,
   dataDir,
   email = 'admin@test.local',

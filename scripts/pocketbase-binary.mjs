@@ -1,15 +1,57 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-export const DEFAULT_VERSION = '0.40.4';
 
 const PLATFORMS = { linux: 'linux', darwin: 'darwin', win32: 'windows' };
 const ARCHES = { x64: 'amd64', arm64: 'arm64' };
 
+const LATEST_RELEASE_URL = 'https://api.github.com/repos/pocketbase/pocketbase/releases/latest';
+const VERSION_DIR_PATTERN = /^\d+\.\d+\.\d+$/;
+
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+
+function parseReleaseTag(tag) {
+  const version = typeof tag === 'string' ? tag.replace(/^v/, '') : '';
+  if (!VERSION_DIR_PATTERN.test(version)) throw new Error(`Unexpected latest release tag: ${tag}`);
+  return version;
+}
+
+async function fetchLatestVersion(fetchImpl) {
+  const response = await fetchImpl(LATEST_RELEASE_URL, {
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'pocketbase-mcp' },
+  });
+  if (!response.ok) throw new Error(`Failed to resolve latest PocketBase release: HTTP ${response.status}`);
+  return parseReleaseTag((await response.json()).tag_name);
+}
+
+let latestVersionPromise;
+
+export function resolveLatestVersion(fetchImpl = fetch) {
+  if (fetchImpl !== fetch) return fetchLatestVersion(fetchImpl);
+  latestVersionPromise ??= fetchLatestVersion(fetchImpl);
+  return latestVersionPromise;
+}
+
+async function resolveCachedVersion(cacheRoot) {
+  const entries = await readdir(cacheRoot, { withFileTypes: true }).catch(() => []);
+  const versions = entries
+    .filter((entry) => entry.isDirectory() && VERSION_DIR_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return versions.at(-1);
+}
+
+async function resolveVersion(fetchImpl, cacheRoot) {
+  try {
+    return await resolveLatestVersion(fetchImpl);
+  } catch (error) {
+    const cached = await resolveCachedVersion(cacheRoot);
+    if (!cached) throw new Error(`${error.message}\nNo cached PocketBase version found in ${cacheRoot}`);
+    return cached;
+  }
+}
 
 export function resolveAssetName(version, platform, arch) {
   const os = PLATFORMS[platform];
@@ -120,21 +162,22 @@ async function writeAndExtract(target, zipBuffer, platform) {
 }
 
 export async function ensureBinary({
-  version = DEFAULT_VERSION,
+  version,
   platform = process.platform,
   arch = process.arch,
   cacheRoot = defaultCacheRoot(),
   fetchImpl = fetch,
 } = {}) {
-  const target = cachePathFor({ cacheRoot, version, platform, arch });
+  const resolved = version ?? (await resolveVersion(fetchImpl, cacheRoot));
+  const target = cachePathFor({ cacheRoot, version: resolved, platform, arch });
   try {
     await stat(target);
     return target;
   } catch {}
 
-  const asset = resolveAssetName(version, platform, arch);
-  const zipBuffer = await downloadAsset(fetchImpl, asset, version);
-  const expected = await fetchExpectedChecksum(fetchImpl, version, asset);
+  const asset = resolveAssetName(resolved, platform, arch);
+  const zipBuffer = await downloadAsset(fetchImpl, asset, resolved);
+  const expected = await fetchExpectedChecksum(fetchImpl, resolved, asset);
   verifyChecksum(zipBuffer, expected, asset);
 
   await mkdir(dirname(target), { recursive: true });

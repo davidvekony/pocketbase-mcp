@@ -18,7 +18,7 @@ MCP server (stdio) exposing PocketBase operations as 24 tools, built on the MCP 
 ## Testing
 
 - Tests are plain `node:test` `.mjs` files and import the compiled `build/` output (or spawn `build/index.js`), so a build must happen first; the pnpm scripts already do this.
-- Integration tests are opt-in: `RUN_INTEGRATION=1`. They download PocketBase v0.40.4 into `.cache/pocketbase` (sha256-verified) and run it on a free port. `POCKETBASE_BIN` reuses an existing binary; setting `POCKETBASE_URL` + `POCKETBASE_ADMIN_EMAIL`/`POCKETBASE_ADMIN_PASSWORD` targets an external instance instead.
+- Integration tests are opt-in: `RUN_INTEGRATION=1`. They download the latest PocketBase release (resolved from the GitHub releases API, sha256-verified) into `.cache/pocketbase` and run it on a free port. When the GitHub API is unreachable, the newest cached version is reused. `POCKETBASE_BIN` reuses an existing binary; setting `POCKETBASE_URL` + `POCKETBASE_ADMIN_EMAIL`/`POCKETBASE_ADMIN_PASSWORD` targets an external instance instead.
 - `test/registration.test.mjs` asserts the exact tool list (`EXPECTED_TOOLS`), plus each tool's title, description, output schema, and read-only/destructive annotations. Update it when adding or removing tools.
 - fallow `health` must report zero findings: with no measured coverage, CRAP = cyc²+cyc, so any function with cyclomatic complexity >= 5 is flagged. Extract helpers to keep functions at <= 4.
 
