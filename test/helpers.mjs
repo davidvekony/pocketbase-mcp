@@ -1,5 +1,20 @@
 import { spawn } from 'node:child_process';
 
+function respondToMessage(message, pending) {
+  if (message.id === undefined || !pending.has(message.id)) return;
+
+  const { resolve, reject } = pending.get(message.id);
+  pending.delete(message.id);
+  if (message.error) reject(new Error(JSON.stringify(message.error)));
+  else resolve(message.result);
+}
+
+function handleLine(line, pending) {
+  if (!line) return;
+
+  respondToMessage(JSON.parse(line), pending);
+}
+
 export function startServer(env = {}) {
   const child = spawn('node', ['build/index.js'], {
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -20,14 +35,7 @@ export function startServer(env = {}) {
     while ((index = buffer.indexOf('\n')) !== -1) {
       const line = buffer.slice(0, index).trim();
       buffer = buffer.slice(index + 1);
-      if (!line) continue;
-      const message = JSON.parse(line);
-      if (message.id !== undefined && pending.has(message.id)) {
-        const { resolve, reject } = pending.get(message.id);
-        pending.delete(message.id);
-        if (message.error) reject(new Error(JSON.stringify(message.error)));
-        else resolve(message.result);
-      }
+      handleLine(line, pending);
     }
   });
 

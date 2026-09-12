@@ -5,6 +5,60 @@ import type { ToolContext } from './result.js';
 import { jsonResult, messageResult, runTool } from './result.js';
 import { importSummaryOutput, messageOutput, recordOutput, recordPageOutput } from './outputs.js';
 
+type ImportMode = 'create' | 'update' | 'upsert';
+
+type ImportSummary = {
+  created: number;
+  updated: number;
+  failed: number;
+  errors: { index: number; error: string }[];
+};
+
+function shouldCreate(mode: ImportMode, id: string | undefined): boolean {
+  return mode === 'create' || (mode === 'upsert' && id === undefined);
+}
+
+async function importRecord(
+  service: ReturnType<ToolContext['pb']['collection']>,
+  record: Record<string, unknown>,
+  mode: ImportMode
+): Promise<'created' | 'updated'> {
+  const id = typeof record.id === 'string' ? record.id : undefined;
+
+  if (shouldCreate(mode, id)) {
+    await service.create(record);
+    return 'created';
+  }
+
+  if (!id) {
+    throw new Error('Record is missing an "id" for update mode');
+  }
+
+  const { id: _id, ...body } = record;
+  await service.update(id, body);
+  return 'updated';
+}
+
+async function importRecords(
+  service: ReturnType<ToolContext['pb']['collection']>,
+  records: Record<string, unknown>[],
+  mode: ImportMode
+): Promise<ImportSummary> {
+  const summary: ImportSummary = { created: 0, updated: 0, failed: 0, errors: [] };
+
+  for (const [index, record] of records.entries()) {
+    try {
+      const outcome = await importRecord(service, record, mode);
+      summary[outcome] += 1;
+    } catch (error) {
+      summary.failed += 1;
+      summary.errors.push({ index, error: pocketbaseErrorMessage(error) });
+    }
+  }
+
+  return summary;
+}
+
 export function registerRecordTools(server: McpServer, context: ToolContext): void {
   server.registerTool(
     'create_record',
@@ -109,33 +163,7 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
     async (args) =>
       runTool('Failed to import data', async () => {
         const service = context.pb.collection(args.collection);
-        const summary = {
-          created: 0,
-          updated: 0,
-          failed: 0,
-          errors: [] as { index: number; error: string }[],
-        };
-
-        for (const [index, record] of args.data.entries()) {
-          const id = typeof record.id === 'string' ? record.id : undefined;
-          try {
-            if (args.mode === 'create' || (args.mode === 'upsert' && !id)) {
-              await service.create(record);
-              summary.created += 1;
-            } else {
-              if (!id) {
-                throw new Error('Record is missing an "id" for update mode');
-              }
-              const { id: _id, ...body } = record;
-              await service.update(id, body);
-              summary.updated += 1;
-            }
-          } catch (error) {
-            summary.failed += 1;
-            summary.errors.push({ index, error: pocketbaseErrorMessage(error) });
-          }
-        }
-
+        const summary = await importRecords(service, args.data, args.mode);
         return { ...jsonResult(summary), isError: summary.failed > 0 };
       })
   );

@@ -1,34 +1,51 @@
+type UnknownRecord = Record<string, unknown>;
+
+function isObject(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function flattenDataValues(data: UnknownRecord): string[] {
+  const messages: string[] = [];
+
+  for (const key in data) {
+    const value = data[key];
+    if (isObject(value)) {
+      messages.push(...flattenErrors(value));
+    }
+  }
+
+  return messages;
+}
+
+function furtherDataMessages(data: unknown): string[] | undefined {
+  if (!data) return undefined;
+
+  const messages = flattenDataValues(data as UnknownRecord);
+  return messages.length > 0 ? messages : undefined;
+}
+
+function withMessage(message: unknown, data: unknown): string[] {
+  return [message as string, ...flattenErrors(data || {})];
+}
+
+function flattenErrorObject(errors: UnknownRecord): string[] {
+  if (errors.message) {
+    return withMessage(errors.message, errors.data);
+  }
+
+  return furtherDataMessages(errors.data) ?? Object.values(errors).flatMap(flattenErrors);
+}
+
 export function flattenErrors(errors: unknown): string[] {
   if (Array.isArray(errors)) {
     return errors.flatMap(flattenErrors);
-  } else if (typeof errors === "object" && errors !== null) {
-    const errorObject = errors as Record<string, any>;
-
-    if (errorObject.message) {
-      return [errorObject.message, ...flattenErrors(errorObject.data || {})];
-    }
-
-    if (errorObject.data) {
-      const messages: string[] = [];
-
-      for (const key in errorObject.data) {
-        const value = errorObject.data[key];
-        if (typeof value === "object" && value !== null) {
-          messages.push(...flattenErrors(value));
-        }
-      }
-
-      if (messages.length > 0) {
-        return messages;
-      }
-    }
-
-    return Object.values(errorObject).flatMap(flattenErrors);
-  } else if (typeof errors === "string") {
-    return [errors];
-  } else {
-    return [];
   }
+
+  if (typeof errors === "string") {
+    return [errors];
+  }
+
+  return isObject(errors) ? flattenErrorObject(errors) : [];
 }
 
 export function pocketbaseErrorMessage(errors: unknown): string {

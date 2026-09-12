@@ -38,6 +38,28 @@ const READ_ONLY = new Set([
 
 const DESTRUCTIVE = new Set(['delete_collection', 'delete_record']);
 
+function readAnnotation(tool, hint) {
+  return tool.annotations ? tool.annotations[hint] : undefined;
+}
+
+function assertToolAnnotations(tool) {
+  if (READ_ONLY.has(tool.name)) {
+    assert.equal(readAnnotation(tool, 'readOnlyHint'), true, `${tool.name} is read-only`);
+  }
+  if (DESTRUCTIVE.has(tool.name)) {
+    assert.equal(readAnnotation(tool, 'destructiveHint'), true, `${tool.name} is destructive`);
+  }
+}
+
+function assertToolMetadata(tool) {
+  assert.ok(tool.description, `${tool.name} has a description`);
+  assert.ok(tool.title, `${tool.name} has a title`);
+
+  const outputSchemaType = tool.outputSchema && tool.outputSchema.type;
+  assert.equal(outputSchemaType, 'object', `${tool.name} has an object output schema`);
+  assertToolAnnotations(tool);
+}
+
 test('server registers the full tool inventory', async () => {
   const client = startServer();
   try {
@@ -51,15 +73,7 @@ test('server registers the full tool inventory', async () => {
     );
 
     for (const tool of tools) {
-      assert.ok(tool.description && tool.description.length > 0, `${tool.name} has a description`);
-      assert.ok(tool.title && tool.title.length > 0, `${tool.name} has a title`);
-      assert.equal(tool.outputSchema?.type, 'object', `${tool.name} has an object output schema`);
-      if (READ_ONLY.has(tool.name)) {
-        assert.equal(tool.annotations?.readOnlyHint, true, `${tool.name} is read-only`);
-      }
-      if (DESTRUCTIVE.has(tool.name)) {
-        assert.equal(tool.annotations?.destructiveHint, true, `${tool.name} is destructive`);
-      }
+      assertToolMetadata(tool);
     }
   } finally {
     await client.close();

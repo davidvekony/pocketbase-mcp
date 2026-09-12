@@ -19,7 +19,7 @@ export function resolveAssetName(version, platform, arch) {
   return `pocketbase_${version}_${os}_${cpu}.zip`;
 }
 
-export function binaryName(platform) {
+function binaryName(platform) {
   return platform === 'win32' ? 'pocketbase.exe' : 'pocketbase';
 }
 
@@ -31,7 +31,7 @@ export function downloadUrl(version, asset) {
   return `https://github.com/pocketbase/pocketbase/releases/download/v${version}/${asset}`;
 }
 
-export function checksumsUrl(version) {
+function checksumsUrl(version) {
   return `https://github.com/pocketbase/pocketbase/releases/download/v${version}/checksums.txt`;
 }
 
@@ -44,7 +44,7 @@ export function parseChecksums(text) {
   return checksums;
 }
 
-export function defaultCacheRoot() {
+function defaultCacheRoot() {
   return join(repoRoot, '.cache', 'pocketbase');
 }
 
@@ -63,20 +63,23 @@ function run(command, args) {
   });
 }
 
+function extractionCommands(zipPath, destDir, platform) {
+  if (platform === 'win32') {
+    return [
+      ['tar', ['-xf', zipPath, '-C', destDir]],
+      ['powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${destDir}' -Force`]],
+    ];
+  }
+  return [
+    ['unzip', ['-o', zipPath, '-d', destDir]],
+    ['tar', ['-xf', zipPath, '-C', destDir]],
+  ];
+}
+
 async function extractZip(zipPath, destDir, platform) {
   await mkdir(destDir, { recursive: true });
-  const attempts =
-    platform === 'win32'
-      ? [
-          ['tar', ['-xf', zipPath, '-C', destDir]],
-          ['powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${destDir}' -Force`]],
-        ]
-      : [
-          ['unzip', ['-o', zipPath, '-d', destDir]],
-          ['tar', ['-xf', zipPath, '-C', destDir]],
-        ];
   let lastError;
-  for (const [command, args] of attempts) {
+  for (const [command, args] of extractionCommands(zipPath, destDir, platform)) {
     try {
       await run(command, args);
       return;
@@ -85,6 +88,35 @@ async function extractZip(zipPath, destDir, platform) {
     }
   }
   throw new Error(`Failed to extract ${zipPath}: ${lastError?.message}`);
+}
+
+async function downloadAsset(fetchImpl, asset, version) {
+  const response = await fetchImpl(downloadUrl(version, asset));
+  if (!response.ok) throw new Error(`Failed to download ${asset}: HTTP ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function fetchExpectedChecksum(fetchImpl, version, asset) {
+  const response = await fetchImpl(checksumsUrl(version));
+  if (!response.ok) throw new Error(`Failed to download checksums.txt: HTTP ${response.status}`);
+  const expected = parseChecksums(await response.text()).get(asset);
+  if (!expected) throw new Error(`No published checksum for ${asset}`);
+  return expected;
+}
+
+function verifyChecksum(zipBuffer, expected, asset) {
+  const actual = createHash('sha256').update(zipBuffer).digest('hex');
+  if (actual !== expected) {
+    throw new Error(`Checksum mismatch for ${asset}: expected ${expected}, got ${actual}`);
+  }
+}
+
+async function writeAndExtract(target, zipBuffer, platform) {
+  const zipPath = `${target}.zip`;
+  await writeFile(zipPath, zipBuffer);
+  await extractZip(zipPath, dirname(target), platform);
+  await rm(zipPath, { force: true });
+  if (platform !== 'win32') await chmod(target, 0o755);
 }
 
 export async function ensureBinary({
@@ -101,25 +133,12 @@ export async function ensureBinary({
   } catch {}
 
   const asset = resolveAssetName(version, platform, arch);
-  const zipResponse = await fetchImpl(downloadUrl(version, asset));
-  if (!zipResponse.ok) throw new Error(`Failed to download ${asset}: HTTP ${zipResponse.status}`);
-  const zipBuffer = Buffer.from(await zipResponse.arrayBuffer());
-
-  const checksumsResponse = await fetchImpl(checksumsUrl(version));
-  if (!checksumsResponse.ok) throw new Error(`Failed to download checksums.txt: HTTP ${checksumsResponse.status}`);
-  const expected = parseChecksums(await checksumsResponse.text()).get(asset);
-  if (!expected) throw new Error(`No published checksum for ${asset}`);
-  const actual = createHash('sha256').update(zipBuffer).digest('hex');
-  if (actual !== expected) {
-    throw new Error(`Checksum mismatch for ${asset}: expected ${expected}, got ${actual}`);
-  }
+  const zipBuffer = await downloadAsset(fetchImpl, asset, version);
+  const expected = await fetchExpectedChecksum(fetchImpl, version, asset);
+  verifyChecksum(zipBuffer, expected, asset);
 
   await mkdir(dirname(target), { recursive: true });
-  const zipPath = `${target}.zip`;
-  await writeFile(zipPath, zipBuffer);
-  await extractZip(zipPath, dirname(target), platform);
-  await rm(zipPath, { force: true });
-  if (platform !== 'win32') await chmod(target, 0o755);
+  await writeAndExtract(target, zipBuffer, platform);
   return target;
 }
 

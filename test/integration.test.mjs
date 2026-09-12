@@ -11,6 +11,30 @@ const enabled = runIntegration
     : true
   : false;
 
+async function startEnvironment(useExternal) {
+  const managed = useExternal ? null : await startPocketBase();
+  const client = startServer(
+    managed
+      ? {
+          POCKETBASE_URL: managed.url,
+          POCKETBASE_ADMIN_EMAIL: managed.email,
+          POCKETBASE_ADMIN_PASSWORD: managed.password,
+        }
+      : {},
+  );
+  return { managed, client };
+}
+
+async function cleanup(client, managed, collections) {
+  for (const name of collections) {
+    try {
+      await callTool(client, 'delete_collection', { collectionIdOrName: name });
+    } catch {}
+  }
+  await client.close();
+  if (managed) await managed.stop();
+}
+
 test(
   'exercises collection, record, import, auth and backup tools against a live PocketBase',
   {
@@ -24,16 +48,7 @@ test(
     const dataCollection = `mcp_test_data_${suffix}`;
     const authCollection = `mcp_test_auth_${suffix}`;
 
-    const managed = useExternal ? null : await startPocketBase();
-    const client = startServer(
-      managed
-        ? {
-            POCKETBASE_URL: managed.url,
-            POCKETBASE_ADMIN_EMAIL: managed.email,
-            POCKETBASE_ADMIN_PASSWORD: managed.password,
-          }
-        : {},
-    );
+    const { managed, client } = await startEnvironment(useExternal);
     try {
       await client.initialize();
 
@@ -125,14 +140,7 @@ test(
       assert.equal(backup.isError, undefined);
       assert.equal(backup.structuredContent.success, true);
     } finally {
-      try {
-        await callTool(client, 'delete_collection', { collectionIdOrName: dataCollection });
-      } catch {}
-      try {
-        await callTool(client, 'delete_collection', { collectionIdOrName: authCollection });
-      } catch {}
-      await client.close();
-      if (managed) await managed.stop();
+      await cleanup(client, managed, [dataCollection, authCollection]);
     }
   }
 );

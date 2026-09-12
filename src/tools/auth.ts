@@ -22,6 +22,67 @@ const authMethodsOutput = z.looseObject({
   mfa: z.looseObject({ enabled: z.boolean().optional() }).optional(),
 });
 
+function resolveAdminFallback(
+  value: string | undefined,
+  envValue: string | undefined,
+  isAdmin: boolean
+): string | undefined {
+  return isAdmin && !value ? envValue : value;
+}
+
+function requireCredentials(
+  email: string | undefined,
+  password: string | undefined
+): { email: string; password: string } {
+  if (!email || !password) {
+    throw new Error('Email and password are required for authentication');
+  }
+
+  return { email, password };
+}
+
+function resolveCredentials(args: {
+  email?: string;
+  password?: string;
+  collection?: string;
+  isAdmin: boolean;
+}): { collection: string; email: string; password: string } {
+  const collection = args.isAdmin ? '_superusers' : args.collection || 'users';
+  const email = resolveAdminFallback(args.email, process.env.POCKETBASE_ADMIN_EMAIL, args.isAdmin);
+  const password = resolveAdminFallback(
+    args.password,
+    process.env.POCKETBASE_ADMIN_PASSWORD,
+    args.isAdmin
+  );
+
+  return { collection, ...requireCredentials(email, password) };
+}
+
+function hasCompleteOtp(args: { otpId?: string; password?: string }): boolean {
+  return Boolean(args.otpId && args.password);
+}
+
+function hasPartialOtp(args: { otpId?: string; password?: string }): boolean {
+  return Boolean(args.otpId || args.password);
+}
+
+async function resolveOtpAuth(
+  service: ReturnType<ToolContext['pb']['collection']>,
+  args: { email: string; otpId?: string; password?: string }
+) {
+  if (hasCompleteOtp(args)) {
+    const authData = await service.authWithOTP(args.otpId as string, args.password as string);
+    return jsonResult(authData);
+  }
+
+  if (hasPartialOtp(args)) {
+    throw new Error('Both otpId and password are required to complete OTP authentication');
+  }
+
+  const otp = await service.requestOTP(args.email);
+  return jsonResult(otp);
+}
+
 export function registerAuthTools(server: McpServer, context: ToolContext): void {
   server.registerTool(
     'list_auth_methods',
@@ -57,15 +118,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
     },
     async (args) =>
       runTool('Authentication failed', async () => {
-        const collection = args.isAdmin ? '_superusers' : args.collection || 'users';
-        const email = args.isAdmin && !args.email ? process.env.POCKETBASE_ADMIN_EMAIL : args.email;
-        const password =
-          args.isAdmin && !args.password ? process.env.POCKETBASE_ADMIN_PASSWORD : args.password;
-
-        if (!email || !password) {
-          throw new Error('Email and password are required for authentication');
-        }
-
+        const { collection, email, password } = resolveCredentials(args);
         const authData = await context.pb.collection(collection).authWithPassword(email, password);
         return jsonResult(authData);
       })
@@ -111,18 +164,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
     async (args) =>
       runTool('Failed to authenticate with OTP', async () => {
         const service = context.pb.collection(args.collection);
-
-        if (args.otpId && args.password) {
-          const authData = await service.authWithOTP(args.otpId, args.password);
-          return jsonResult(authData);
-        }
-
-        if (args.otpId || args.password) {
-          throw new Error('Both otpId and password are required to complete OTP authentication');
-        }
-
-        const otp = await service.requestOTP(args.email);
-        return jsonResult(otp);
+        return resolveOtpAuth(service, args);
       })
   );
 
