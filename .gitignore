@@ -33,12 +33,12 @@ pb_migrations/
 .DS_Store
 Thumbs.db
 
-.env
+# Agentic coding files
 .agents/
+skills-lock.json
+docs/superpowers/
+.superpowers/
+.codegraph/
 
 # Test binary cache
 .cache/
-skills-lock.json
-
-docs/
-.superpowers/
