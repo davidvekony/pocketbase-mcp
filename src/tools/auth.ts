@@ -99,6 +99,10 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
           return textResult({ token: context.pb.authStore.token, record: authData });
         }
 
+        if (args.otpId || args.password) {
+          throw new Error('Both otpId and password are required to complete OTP authentication');
+        }
+
         const otp = await service.requestOTP(args.email);
         return textResult(otp);
       })
@@ -246,10 +250,12 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
     async (args) =>
       runTool('Failed to impersonate user', async () => {
         await context.authorizeAsAdmin();
-        await context.pb.collection(args.collectionIdOrName).impersonate(args.id, args.duration);
+        const impersonated = await context.pb
+          .collection(args.collectionIdOrName)
+          .impersonate(args.id, args.duration);
         return textResult({
-          token: context.pb.authStore.token,
-          record: context.pb.authStore.record,
+          token: impersonated.authStore.token,
+          record: impersonated.authStore.record,
         });
       })
   );
