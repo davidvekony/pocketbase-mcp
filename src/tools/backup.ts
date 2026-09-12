@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { ToolContext } from './result.js';
-import { runTool, textResult } from './result.js';
+import { runTool, successResult } from './result.js';
+import { successOutput } from './outputs.js';
 
 export function registerBackupTools(server: McpServer, context: ToolContext): void {
   server.registerTool(
@@ -12,12 +13,13 @@ export function registerBackupTools(server: McpServer, context: ToolContext): vo
       inputSchema: z.object({
         name: z.string().optional().describe('backup name'),
       }),
+      outputSchema: successOutput,
     },
     async (args) =>
       runTool('Failed to backup database', async () => {
         await context.authorizeAsAdmin();
         const result = await context.pb.backups.create(args.name ?? '', {});
-        return textResult(result);
+        return successResult(result);
       })
   );
 }

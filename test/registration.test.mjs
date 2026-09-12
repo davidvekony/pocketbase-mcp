@@ -53,6 +53,7 @@ test('server registers the full tool inventory', async () => {
     for (const tool of tools) {
       assert.ok(tool.description && tool.description.length > 0, `${tool.name} has a description`);
       assert.ok(tool.title && tool.title.length > 0, `${tool.name} has a title`);
+      assert.equal(tool.outputSchema?.type, 'object', `${tool.name} has an object output schema`);
       if (READ_ONLY.has(tool.name)) {
         assert.equal(tool.annotations?.readOnlyHint, true, `${tool.name} is read-only`);
       }

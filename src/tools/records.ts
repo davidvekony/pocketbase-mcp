@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { pocketbaseErrorMessage } from '../errors.js';
 import type { ToolContext } from './result.js';
-import { runTool, textMessage, textResult } from './result.js';
+import { jsonResult, messageResult, runTool } from './result.js';
+import { importSummaryOutput, messageOutput, recordOutput, recordPageOutput } from './outputs.js';
 
 export function registerRecordTools(server: McpServer, context: ToolContext): void {
   server.registerTool(
@@ -14,11 +15,12 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
         collection: z.string().describe('Collection name'),
         data: z.looseObject({}).describe('Record data'),
       }),
+      outputSchema: recordOutput,
     },
     async (args) =>
       runTool('Failed to create record', async () => {
         const result = await context.pb.collection(args.collection).create(args.data);
-        return textResult(result);
+        return jsonResult(result);
       })
   );
 
@@ -35,6 +37,7 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
         page: z.number().optional().describe('Page number'),
         perPage: z.number().optional().describe('Items per page'),
       }),
+      outputSchema: recordPageOutput,
     },
     async (args) =>
       runTool('Failed to list records', async () => {
@@ -46,7 +49,7 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
             sort: args.sort,
           }
         );
-        return textResult(result);
+        return jsonResult(result);
       })
   );
 
@@ -60,11 +63,12 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
         id: z.string().describe('Record ID'),
         data: z.looseObject({}).describe('Updated record data'),
       }),
+      outputSchema: recordOutput,
     },
     async (args) =>
       runTool('Failed to update record', async () => {
         const result = await context.pb.collection(args.collection).update(args.id, args.data);
-        return textResult(result);
+        return jsonResult(result);
       })
   );
 
@@ -78,11 +82,12 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
         collection: z.string().describe('Collection name'),
         id: z.string().describe('Record ID'),
       }),
+      outputSchema: messageOutput,
     },
     async (args) =>
       runTool('Failed to delete record', async () => {
         await context.pb.collection(args.collection).delete(args.id);
-        return textMessage(`Successfully deleted record ${args.id} from collection ${args.collection}`);
+        return messageResult(`Successfully deleted record ${args.id} from collection ${args.collection}`);
       })
   );
 
@@ -99,6 +104,7 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
           .default('create')
           .describe('Import mode (default: create)'),
       }),
+      outputSchema: importSummaryOutput,
     },
     async (args) =>
       runTool('Failed to import data', async () => {
@@ -130,7 +136,7 @@ export function registerRecordTools(server: McpServer, context: ToolContext): vo
           }
         }
 
-        return { ...textResult(summary), isError: summary.failed > 0 };
+        return { ...jsonResult(summary), isError: summary.failed > 0 };
       })
   );
 }

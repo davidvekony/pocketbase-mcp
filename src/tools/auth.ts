@@ -1,12 +1,26 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { ToolContext } from './result.js';
-import { runTool, textResult } from './result.js';
+import { jsonResult, runTool, successResult } from './result.js';
+import { authResponseOutput, recordOutput, successOutput } from './outputs.js';
 
 const collectionField = z
   .string()
   .default('users')
   .describe('Collection name (default: users)');
+
+const otpOutput = z.looseObject({
+  otpId: z.string().optional().describe('OTP id to pass to a follow-up call'),
+  token: z.string().optional().describe('Authentication token'),
+  record: recordOutput.optional().describe('Authenticated record'),
+});
+
+const authMethodsOutput = z.looseObject({
+  password: z.looseObject({ enabled: z.boolean().optional() }).optional(),
+  oauth2: z.looseObject({ enabled: z.boolean().optional() }).optional(),
+  otp: z.looseObject({ enabled: z.boolean().optional() }).optional(),
+  mfa: z.looseObject({ enabled: z.boolean().optional() }).optional(),
+});
 
 export function registerAuthTools(server: McpServer, context: ToolContext): void {
   server.registerTool(
@@ -16,11 +30,12 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
       description: 'List all available authentication methods',
       annotations: { readOnlyHint: true },
       inputSchema: z.object({ collection: collectionField }),
+      outputSchema: authMethodsOutput,
     },
     async (args) =>
       runTool('Failed to list auth methods', async () => {
         const methods = await context.pb.collection(args.collection).listAuthMethods();
-        return textResult(methods);
+        return jsonResult(methods);
       })
   );
 
@@ -38,6 +53,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
           .default(false)
           .describe('Whether to authenticate as an admin (uses _superusers collection)'),
       }),
+      outputSchema: authResponseOutput,
     },
     async (args) =>
       runTool('Authentication failed', async () => {
@@ -51,7 +67,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         }
 
         const authData = await context.pb.collection(collection).authWithPassword(email, password);
-        return textResult(authData);
+        return jsonResult(authData);
       })
   );
 
@@ -67,13 +83,14 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         redirectUrl: z.string().describe('The redirect URL used in the OAuth2 flow'),
         collection: collectionField,
       }),
+      outputSchema: authResponseOutput,
     },
     async (args) =>
       runTool('Failed to authenticate with OAuth2', async () => {
         const authData = await context.pb
           .collection(args.collection)
           .authWithOAuth2Code(args.provider, args.code, args.codeVerifier, args.redirectUrl);
-        return textResult({ token: context.pb.authStore.token, record: authData });
+        return jsonResult(authData);
       })
   );
 
@@ -89,6 +106,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         password: z.string().optional().describe('One-time password received by email'),
         collection: collectionField,
       }),
+      outputSchema: otpOutput,
     },
     async (args) =>
       runTool('Failed to authenticate with OTP', async () => {
@@ -96,7 +114,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
 
         if (args.otpId && args.password) {
           const authData = await service.authWithOTP(args.otpId, args.password);
-          return textResult({ token: context.pb.authStore.token, record: authData });
+          return jsonResult(authData);
         }
 
         if (args.otpId || args.password) {
@@ -104,7 +122,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         }
 
         const otp = await service.requestOTP(args.email);
-        return textResult(otp);
+        return jsonResult(otp);
       })
   );
 
@@ -114,11 +132,12 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
       title: 'Refresh Authentication',
       description: 'Refresh authentication token',
       inputSchema: z.object({ collection: collectionField }),
+      outputSchema: authResponseOutput,
     },
     async (args) =>
       runTool('Failed to refresh authentication', async () => {
         const authData = await context.pb.collection(args.collection).authRefresh();
-        return textResult({ token: context.pb.authStore.token, record: authData });
+        return jsonResult(authData);
       })
   );
 
@@ -131,11 +150,12 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         email: z.string().describe('User email'),
         collection: collectionField,
       }),
+      outputSchema: successOutput,
     },
     async (args) =>
       runTool('Failed to request verification', async () => {
         const result = await context.pb.collection(args.collection).requestVerification(args.email);
-        return textResult(result);
+        return successResult(result);
       })
   );
 
@@ -148,11 +168,12 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         token: z.string().describe('Verification token'),
         collection: collectionField,
       }),
+      outputSchema: successOutput,
     },
     async (args) =>
       runTool('Failed to confirm verification', async () => {
         const result = await context.pb.collection(args.collection).confirmVerification(args.token);
-        return textResult(result);
+        return successResult(result);
       })
   );
 
@@ -165,13 +186,14 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         email: z.string().describe('User email'),
         collection: collectionField,
       }),
+      outputSchema: successOutput,
     },
     async (args) =>
       runTool('Failed to request password reset', async () => {
         const result = await context.pb
           .collection(args.collection)
           .requestPasswordReset(args.email);
-        return textResult(result);
+        return successResult(result);
       })
   );
 
@@ -186,13 +208,14 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         passwordConfirm: z.string().describe('Confirm new password'),
         collection: collectionField,
       }),
+      outputSchema: successOutput,
     },
     async (args) =>
       runTool('Failed to confirm password reset', async () => {
         const result = await context.pb
           .collection(args.collection)
           .confirmPasswordReset(args.token, args.password, args.passwordConfirm);
-        return textResult(result);
+        return successResult(result);
       })
   );
 
@@ -205,11 +228,12 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         newEmail: z.string().describe('New email address'),
         collection: collectionField,
       }),
+      outputSchema: successOutput,
     },
     async (args) =>
       runTool('Failed to request email change', async () => {
         const result = await context.pb.collection(args.collection).requestEmailChange(args.newEmail);
-        return textResult(result);
+        return successResult(result);
       })
   );
 
@@ -223,13 +247,14 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         password: z.string().describe('Current password for confirmation'),
         collection: collectionField,
       }),
+      outputSchema: successOutput,
     },
     async (args) =>
       runTool('Failed to confirm email change', async () => {
         const result = await context.pb
           .collection(args.collection)
           .confirmEmailChange(args.token, args.password);
-        return textResult(result);
+        return successResult(result);
       })
   );
 
@@ -246,6 +271,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
           .describe('Collection name or id (default: users)'),
         duration: z.number().default(3600).describe('Token expirey time (default: 3600)'),
       }),
+      outputSchema: authResponseOutput,
     },
     async (args) =>
       runTool('Failed to impersonate user', async () => {
@@ -253,7 +279,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         const impersonated = await context.pb
           .collection(args.collectionIdOrName)
           .impersonate(args.id, args.duration);
-        return textResult({
+        return jsonResult({
           token: impersonated.authStore.token,
           record: impersonated.authStore.record,
         });
@@ -272,6 +298,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
         name: z.string().optional().describe('User name'),
         collection: collectionField,
       }),
+      outputSchema: recordOutput,
     },
     async (args) =>
       runTool('Failed to create user', async () => {
@@ -281,7 +308,7 @@ export function registerAuthTools(server: McpServer, context: ToolContext): void
           passwordConfirm: args.passwordConfirm,
           name: args.name,
         });
-        return textResult(result);
+        return jsonResult(result);
       })
   );
 }

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { ToolContext } from './result.js';
-import { runTool, textMessage, textResult } from './result.js';
+import { jsonResult, messageResult, runTool } from './result.js';
+import { collectionListOutput, collectionOutput, messageOutput } from './outputs.js';
 
 const fieldSchema = z.looseObject({
   name: z.string().describe('Field name'),
@@ -62,6 +63,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
           .optional()
           .describe('Password authentication options'),
       }),
+      outputSchema: collectionOutput,
     },
     async (args) =>
       runTool('Failed to create collection', async () => {
@@ -96,7 +98,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
         };
 
         const result = await context.pb.collections.create(collectionData as any);
-        return textResult(result);
+        return jsonResult(result);
       })
   );
 
@@ -123,6 +125,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
           .optional()
           .describe('Password authentication options'),
       }),
+      outputSchema: collectionOutput,
     },
     async (args) =>
       runTool('Failed to update collection', async () => {
@@ -130,7 +133,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
 
         const { collectionIdOrName, ...updateData } = args;
         const result = await context.pb.collections.update(collectionIdOrName, updateData as any);
-        return textResult(result);
+        return jsonResult(result);
       })
   );
 
@@ -149,6 +152,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
           .optional()
           .describe('Comma separated string of the fields to return in the JSON response'),
       }),
+      outputSchema: collectionOutput,
     },
     async (args) =>
       runTool('Failed to get collection', async () => {
@@ -158,7 +162,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
           fields: args.fields,
         });
 
-        return textResult(collection);
+        return jsonResult(collection);
       })
   );
 
@@ -172,21 +176,28 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
         filter: z.string().optional().describe('Filter query for collections'),
         sort: z.string().optional().describe('Sort order for collections'),
       }),
+      outputSchema: collectionListOutput,
     },
     async (args) =>
       runTool('Failed to list collections', async () => {
         await context.authorizeAsAdmin();
 
-        let collections: unknown;
+        let collections: {
+          page?: number;
+          perPage?: number;
+          totalItems?: number;
+          totalPages?: number;
+          items: unknown[];
+        };
         if (args.filter) {
-          collections = await context.pb.collections.getFirstListItem(args.filter);
+          collections = { items: [await context.pb.collections.getFirstListItem(args.filter)] };
         } else if (args.sort) {
-          collections = await context.pb.collections.getFullList({ sort: args.sort });
+          collections = { items: await context.pb.collections.getFullList({ sort: args.sort }) };
         } else {
           collections = await context.pb.collections.getList(1, 100);
         }
 
-        return textResult(collections);
+        return jsonResult(collections);
       })
   );
 
@@ -201,6 +212,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
           .string()
           .describe('ID or name of the collection to delete'),
       }),
+      outputSchema: messageOutput,
     },
     async (args) =>
       runTool('Failed to delete collection', async () => {
@@ -208,7 +220,7 @@ export function registerCollectionTools(server: McpServer, context: ToolContext)
 
         await context.pb.collections.delete(args.collectionIdOrName);
 
-        return textMessage(`Successfully deleted collection ${args.collectionIdOrName}`);
+        return messageResult(`Successfully deleted collection ${args.collectionIdOrName}`);
       })
   );
 }

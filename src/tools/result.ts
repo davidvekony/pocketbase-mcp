@@ -7,7 +7,7 @@ export interface ToolContext {
   authorizeAsAdmin: () => Promise<void>;
 }
 
-export function textResult(data: unknown): CallToolResult {
+export function jsonResult(data: object): CallToolResult {
   return {
     content: [
       {
@@ -15,10 +15,11 @@ export function textResult(data: unknown): CallToolResult {
         text: JSON.stringify(data, null, 2),
       },
     ],
+    structuredContent: { ...data },
   };
 }
 
-export function textMessage(message: string): CallToolResult {
+export function messageResult(message: string): CallToolResult {
   return {
     content: [
       {
@@ -26,6 +27,19 @@ export function textMessage(message: string): CallToolResult {
         text: message,
       },
     ],
+    structuredContent: { success: true, message },
+  };
+}
+
+export function successResult(success: boolean): CallToolResult {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({ success }, null, 2),
+      },
+    ],
+    structuredContent: { success },
   };
 }
 
