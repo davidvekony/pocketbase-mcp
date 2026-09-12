@@ -21,7 +21,7 @@
   "scripts": {
     "build": "tsc",
     "prestart": "pnpm run build",
-    "start": "node build/index.js",
+    "start": "node --env-file-if-exists=.env build/index.js",
     "dev": "tsc -w"
   },
   "dependencies": {
