@@ -1,11 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ErrorCode,
-  ListToolsRequestSchema,
-  McpError,
-} from '@modelcontextprotocol/sdk/types.js';
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { Server, ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
 import PocketBase from 'pocketbase';
 
 
@@ -45,7 +39,9 @@ class PocketBaseServer {
   }
 
   private setupToolHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    this.server.setRequestHandler(
+      'tools/list',
+      async (): Promise<any> => ({
       tools: [
         {
           name: 'create_collection',
@@ -662,9 +658,10 @@ class PocketBaseServer {
           },
         },
       ],
-    }));
+    }),
+    );
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler('tools/call', async (request): Promise<any> => {
       try {
         switch (request.params.name) {
           case 'create_collection':
@@ -692,17 +689,17 @@ class PocketBaseServer {
           case 'delete_collection':
             return await this.deleteCollection(request.params.arguments);
           default:
-            throw new McpError(
-              ErrorCode.MethodNotFound,
+            throw new ProtocolError(
+              ProtocolErrorCode.MethodNotFound,
               `Unknown tool: ${request.params.name}`
             );
         }
       } catch (error: unknown) {
-        if (error instanceof McpError) {
+        if (error instanceof ProtocolError) {
           throw error;
         }
-        throw new McpError(
-          ErrorCode.InternalError,
+        throw new ProtocolError(
+          ProtocolErrorCode.InternalError,
           `PocketBase error: ${pocketbaseErrorMessage(error)}`
         );
       }
@@ -752,8 +749,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to create collection: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -775,8 +772,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to update collection: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -794,8 +791,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to create record: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -827,8 +824,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to list records: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -848,8 +845,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to update record: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -867,8 +864,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to delete record: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -900,8 +897,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Authentication failed: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -925,8 +922,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to create user: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -951,8 +948,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to get collection: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -975,8 +972,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to backup database: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -1006,8 +1003,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to list collections: ${pocketbaseErrorMessage(error)}`
       );
     }
@@ -1030,8 +1027,8 @@ class PocketBaseServer {
         ],
       };
     } catch (error: unknown) {
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new ProtocolError(
+        ProtocolErrorCode.InternalError,
         `Failed to delete collection: ${pocketbaseErrorMessage(error)}`
       );
     }
