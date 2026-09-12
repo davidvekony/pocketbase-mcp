@@ -45,6 +45,26 @@ To set up the MCP server locally, you'll need to configure it within your `cline
     - **`autoApprove`**: list of tools to auto approve.
     - Adjust the values in the `env` object to match your PocketBase instance's settings.
 
+**For OpenCode (`opencode.json`):**
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "pocketbase": {
+      "type": "local",
+      "command": ["node", "build/index.js"],
+      "enabled": true,
+      "environment": {
+        "POCKETBASE_URL": "http://127.0.0.1:8090",
+        "POCKETBASE_ADMIN_EMAIL": "admin@example.com",
+        "POCKETBASE_ADMIN_PASSWORD": "admin_password"
+      }
+    }
+  }
+}
+```
+
 - Setup in vscode is similar , find or create `.vscode/mcp.json` and add
 
 ```json
@@ -120,14 +140,16 @@ podman run -d \
 
 To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.), configure it in your MCP settings:
 
-**For Cline/Cursor (`cline_mcp_settings.json`):**
+**For OpenCode (`opencode.json`) with Podman:**
 
 ```json
 {
-  "mcpServers": {
-    "pocketbase-podman": {
-      "command": "podman",
-      "args": [
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "pocketbase": {
+      "type": "local",
+      "command": [
+        "podman",
         "run",
         "-i",
         "--rm",
@@ -139,8 +161,7 @@ To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.
         "POCKETBASE_ADMIN_PASSWORD,type=env",
         "pocketbase-mcp"
       ],
-      "disabled": false,
-      "autoApprove": ["list_collections", "list_records", "get_collection"]
+      "enabled": true
     }
   }
 }
