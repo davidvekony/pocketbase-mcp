@@ -5,7 +5,14 @@
   "bin": {
     "pocketbase-server": "./build/index.js"
   },
-  "packageManager": "pnpm@12",
+  "packageManager": "pnpm@12.4.1",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": ">=12 <13",
+      "onFail": "download"
+    }
+  },
   "engines": {
     "node": ">=26",
     "pnpm": ">=12"
