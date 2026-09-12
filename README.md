@@ -67,7 +67,7 @@ To set up the MCP server locally, you'll need to configure it within your `cline
     "pocketbaseServer": {
       "type": "stdio",
       "command": "node",
-      // replace this with the path to your compiled MCP server (git clone the repo and run `npm run build` to compile)
+      // replace this with the path to your compiled MCP server (git clone the repo and run `pnpm run build` to compile)
       "args": ["~/Desktop/code/mcp/pocketbase-mcp/build/index.js"],
       "env": {
         "POCKETBASE_URL": "http://127.0.0.1:8090",
@@ -81,22 +81,22 @@ To set up the MCP server locally, you'll need to configure it within your `cline
 
 1.  **Start the server:** After configuring the `cline_mcp_settings.json` file, you can start using the MCP server with the configured tools.
 
-## Setup MCP Server with Docker
+## Setup MCP Server with Podman
 
-You can run the PocketBase MCP server using Docker. A `Dockerfile` is included in the repository.
+You can run the PocketBase MCP server using Podman. A `Containerfile` is included in the repository.
 
-### Building the Docker Image
+### Building the Container Image
 
 ```bash
-# Build the Docker image
-docker build -t pocketbase-mcp .
+# Build the container image
+podman build -t pocketbase-mcp .
 ```
 
-### Running the Docker Container
+### Running the Container
 
 ```bash
 # Run the container with environment variables
-docker run -d \
+podman run -d \
   --name pocketbase-mcp \
   -e POCKETBASE_URL=http://127.0.0.1:8090 \
   -e POCKETBASE_ADMIN_EMAIL=your_admin@example.com \
@@ -104,23 +104,23 @@ docker run -d \
   pocketbase-mcp
 ```
 
-### Docker MCP Configuration
+### Podman MCP Configuration
 
-To use the Dockerized MCP server with your AI assistant (Cursor, Claude, etc.), configure it in your MCP settings:
+To use the containerized MCP server with your AI assistant (Cursor, Claude, etc.), configure it in your MCP settings:
 
 **For Cline/Cursor (`cline_mcp_settings.json`):**
 
 ```json
 {
   "mcpServers": {
-    "pocketbase-docker": {
-      "command": "docker",
+    "pocketbase-podman": {
+      "command": "podman",
       "args": [
         "run",
         "-i",
         "--rm",
         "-e",
-        "POCKETBASE_URL=http://host.docker.internal:8090",
+        "POCKETBASE_URL=http://host.containers.internal:8090",
         "-e",
         "POCKETBASE_ADMIN_EMAIL=your_admin@example.com",
         "-e",
@@ -153,15 +153,15 @@ To use the Dockerized MCP server with your AI assistant (Cursor, Claude, etc.), 
     }
   ],
   "servers": {
-    "pocketbaseDocker": {
+    "pocketbasePodman": {
       "type": "stdio",
-      "command": "docker",
+      "command": "podman",
       "args": [
         "run",
         "-i",
         "--rm",
         "-e",
-        "POCKETBASE_URL=http://host.docker.internal:8090",
+        "POCKETBASE_URL=http://host.containers.internal:8090",
         "-e",
         "POCKETBASE_ADMIN_EMAIL=${input:pocketbase-admin-email}",
         "-e",
@@ -173,17 +173,17 @@ To use the Dockerized MCP server with your AI assistant (Cursor, Claude, etc.), 
 }
 ```
 
-### Docker Configuration Notes
+### Podman Configuration Notes
 
 - **`-i`**: Interactive mode (required for stdio communication)
 - **`--rm`**: Automatically remove container when it exits
-- **`host.docker.internal`**: Use this to access PocketBase running on your host machine from within Docker
+- **`host.containers.internal`**: Use this to access PocketBase running on your host machine from within the container
 - **Environment Variables**: Replace placeholder values with your actual PocketBase credentials
-- **Network**: If your PocketBase is also running in Docker, use Docker networking (e.g., `--network host` or custom bridge network)
+- **Network**: If your PocketBase is also running in a container, use Podman networking (e.g., `--network host` or custom bridge network)
 
-### Docker Compose (Optional)
+### Podman Compose (Optional)
 
-Create a `docker-compose.yml` for easier management:
+Create a `compose.yml` for easier management:
 
 ```yaml
 version: "3.8"
@@ -192,7 +192,7 @@ services:
   pocketbase-mcp:
     build: .
     environment:
-      - POCKETBASE_URL=http://host.docker.internal:8090
+      - POCKETBASE_URL=http://host.containers.internal:8090
       - POCKETBASE_ADMIN_EMAIL=your_admin@example.com
       - POCKETBASE_ADMIN_PASSWORD=your_admin_password
     stdin_open: true
@@ -204,8 +204,8 @@ Then configure your MCP settings to use:
 ```json
 {
   "mcpServers": {
-    "pocketbase-docker": {
-      "command": "docker-compose",
+    "pocketbase-podman": {
+      "command": "podman-compose",
       "args": ["run", "--rm", "pocketbase-mcp"],
       "disabled": false
     }
