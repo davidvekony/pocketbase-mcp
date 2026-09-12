@@ -35,6 +35,9 @@ Thumbs.db
 
 .env
 .agents/
+
+# Test binary cache
+.cache/
 skills-lock.json
 
 docs/
