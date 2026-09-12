@@ -23,7 +23,10 @@
     "prestart": "pnpm run build",
     "start": "node --env-file-if-exists=.env build/index.js",
     "dev": "tsc -w",
-    "test": "pnpm run build && node --test test/"
+    "test": "pnpm test:unit",
+    "test:unit": "pnpm run build && node --test test/",
+    "test:integration": "pnpm run build && RUN_INTEGRATION=1 node --test test/integration.test.mjs",
+    "test:all": "pnpm run build && RUN_INTEGRATION=1 node --test test/"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",

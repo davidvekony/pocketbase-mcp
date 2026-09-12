@@ -163,19 +163,25 @@ Optional environment variables:
 
 ## Development
 
-Run the unit and registration tests:
+Run the unit and registration tests (the integration test is skipped):
 
 ```bash
-pnpm test
+pnpm test:unit
 ```
 
-The live integration test is opt-in:
+Run the live integration test against a managed PocketBase instance:
 
 ```bash
-RUN_INTEGRATION=1 pnpm test
+pnpm test:integration
 ```
 
-Unless `POCKETBASE_BIN` points to an existing binary, this downloads PocketBase v0.40.4 into `.cache/pocketbase` (checksum verified), starts it on a free port, and removes its data directory afterwards. To test against an external instance instead, set `RUN_INTEGRATION=1`, `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, and `POCKETBASE_ADMIN_PASSWORD`.
+Run everything in one go:
+
+```bash
+pnpm test:all
+```
+
+The integration test downloads PocketBase v0.40.4 into `.cache/pocketbase` unless `POCKETBASE_BIN` points to an existing binary (checksum verified), starts it on a free port, and removes its data directory afterwards. To test against an external instance instead, run `pnpm test:integration` with `POCKETBASE_URL`, `POCKETBASE_ADMIN_EMAIL`, and `POCKETBASE_ADMIN_PASSWORD` set.
 
 ## Contributing
 
