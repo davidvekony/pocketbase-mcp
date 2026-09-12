@@ -34,3 +34,8 @@ pb_migrations/
 Thumbs.db
 
 .env
+.agents/
+skills-lock.json
+
+docs/
+.superpowers/
